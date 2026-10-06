@@ -41,8 +41,8 @@ PRODUCT_DIR = "Bank_Product"
 SAMPLE_RATE = 16000
 MIN_AUDIO_BYTES = 5000  # recordings smaller than this are treated as silence
 
-DEFAULT_VOICE_MODEL = "gemini-flash-lite-latest"
-DEFAULT_GEN_MODEL = "gemini-flash-lite-latest"
+DEFAULT_VOICE_MODEL = "gemini-flash-latest"
+DEFAULT_GEN_MODEL = "gemma-4-26b-a4b-it"
 
 DOMAINS = [
     "home loan",
@@ -497,8 +497,7 @@ def list_models(_client):
         if "gemma" in name:
             gen_models.append(clean)
 
-    # return sorted(voice_models), sorted(gen_models)
-    return ["gemini-flash-lite-latest"], ["gemini-flash-lite-latest"] 
+    return sorted(voice_models), sorted(gen_models)
 
 
 def default_index(options, preferred):
@@ -511,8 +510,7 @@ except Exception as e:
     st.sidebar.warning(f"Could not load the model list ({e}). Using defaults.")
     voice_models, gemma_models = [DEFAULT_VOICE_MODEL], [DEFAULT_GEN_MODEL]
 
-# generation_models = voice_models + gemma_models
-generation_models = voice_models 
+generation_models = voice_models + gemma_models
 
 # =====================================================
 # SESSION STATE
@@ -735,7 +733,8 @@ def load_products(domain):
 
 def retrieve_products(df, keywords, top_n):
     """Rank rows by how many keywords they contain (original: one ordered regex)."""
-    blob = df.astype(str).apply(lambda row: " ".join(row).lower(), axis=1)
+    # fillna + map(str): empty Excel cells are NaN floats and would break the join
+    blob = df.fillna("").apply(lambda row: " ".join(map(str, row)).lower(), axis=1)
     hits = blob.apply(lambda text: sum(1 for k in keywords if k in text))
     matched = hits > 0
 
