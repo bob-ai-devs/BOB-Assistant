@@ -1190,9 +1190,9 @@ def render_result(r):
             if h["id"] == r["id"]:
                 if h["feedback"] != rating:  # toast only when the choice changes
                     if rating == 1:
-                        st.toast(":green[**Thanks! Glad this was helpful.**]", icon="👍")
+                        st.toast(":green[Thanks! Glad this was helpful.]", icon="👍")
                     else:
-                        st.toast(":red[**Sorry about that. We'll try to do better.**]", icon="👎")
+                        st.toast(":red[Sorry about that. We'll try to do better.]", icon="👎")
                 h["feedback"] = rating
 
 
