@@ -41,8 +41,8 @@ PRODUCT_DIR = "Bank_Product"
 SAMPLE_RATE = 16000
 MIN_AUDIO_BYTES = 5000  # recordings smaller than this are treated as silence
 
-DEFAULT_VOICE_MODEL = "gemini-flash-latest"
-DEFAULT_GEN_MODEL = "gemma-4-26b-a4b-it"
+DEFAULT_VOICE_MODEL = "gemini-flash-lite-latest"
+DEFAULT_GEN_MODEL = "gemini-flash-lite-latest"
 
 DOMAINS = [
     "home loan",
@@ -497,7 +497,8 @@ def list_models(_client):
         if "gemma" in name:
             gen_models.append(clean)
 
-    return sorted(voice_models), sorted(gen_models)
+    # return sorted(voice_models), sorted(gen_models)
+    return ["gemini-flash-lite-latest"], []
 
 
 def default_index(options, preferred):
