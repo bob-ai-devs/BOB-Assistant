@@ -1186,9 +1186,13 @@ def render_result(r):
     st.markdown("**Was this answer helpful?**")
     rating = st.feedback("thumbs", key=f"fb_{r['id']}")
     if rating is not None:
-        st.toast("Rating Submitted Successfully!")
         for h in st.session_state.history:
             if h["id"] == r["id"]:
+                if h["feedback"] != rating:  # toast only when the choice changes
+                    if rating == 1:
+                        st.toast(":green[**Thanks! Glad this was helpful.**]", icon="👍")
+                    else:
+                        st.toast(":red[**Sorry about that. We'll try to do better.**]", icon="👎")
                 h["feedback"] = rating
 
 
