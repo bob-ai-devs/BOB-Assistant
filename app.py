@@ -511,7 +511,8 @@ except Exception as e:
     st.sidebar.warning(f"Could not load the model list ({e}). Using defaults.")
     voice_models, gemma_models = [DEFAULT_VOICE_MODEL], [DEFAULT_GEN_MODEL]
 
-generation_models = voice_models + gemma_models
+# generation_models = voice_models + gemma_models
+generation_models = voice_models 
 
 # =====================================================
 # SESSION STATE
