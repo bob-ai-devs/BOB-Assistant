@@ -497,7 +497,8 @@ def list_models(_client):
         if "gemma" in name:
             gen_models.append(clean)
 
-    return sorted(voice_models), sorted(gen_models)
+    # return sorted(voice_models), sorted(gen_models)
+    return ["gemini-flash-lite-latest"], ["gemini-flash-lite-latest"] 
 
 
 def default_index(options, preferred):
