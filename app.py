@@ -3,7 +3,6 @@
 # Record / type → Understand → Match products → Answer → Speak
 
 import ast
-import base64
 import difflib
 import html
 import io
@@ -688,7 +687,7 @@ def build_extract_prompt(kind, text=None):
         source = ""
     else:
         steps = (
-            "1. Detect the language of the customer text below. (Consider the language only, the language may be written in latin script, like for Hinglish - consider Hindi, for Banglish - consider Bengali respectively)\n"
+            "1. Detect the language of the customer text below.\n"
             "2. Copy the customer text as the transcript, unchanged.\n"
             "3. Translate the text into English."
         )
@@ -1112,16 +1111,14 @@ def render_result(r):
 
         st.markdown("## Spoken Response")
         if r["tts"]:
-            if AUTOPLAY and not r["played"]:
-                audio_b64 = base64.b64encode(r["tts"]).decode()
-                st.markdown(
-                    '<audio autoplay controls style="width:100%">'
-                    f'<source src="data:audio/mp3;base64,{audio_b64}" type="audio/mp3">'
-                    "</audio>",
-                    unsafe_allow_html=True,
+            # Native audio element, keyed per answer, so a new answer always
+            # loads its own voice instead of reusing the previous one.
+            with st.container(key=f"voice_{r['id']}"):
+                st.audio(
+                    r["tts"],
+                    format="audio/mp3",
+                    autoplay=bool(AUTOPLAY and not r["played"]),
                 )
-            else:
-                st.audio(r["tts"], format="audio/mp3")
             r["played"] = True
 
             st.download_button(
