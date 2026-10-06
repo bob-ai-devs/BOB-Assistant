@@ -1186,6 +1186,7 @@ def render_result(r):
     st.markdown("**Was this answer helpful?**")
     rating = st.feedback("thumbs", key=f"fb_{r['id']}")
     if rating is not None:
+        st.toast("Rating Submitted Successfully!")
         for h in st.session_state.history:
             if h["id"] == r["id"]:
                 h["feedback"] = rating
