@@ -4,6 +4,7 @@
 
 import ast
 import difflib
+import hmac
 import html
 import io
 import os
@@ -11,9 +12,10 @@ import re
 import textwrap
 import time
 import uuid
+import zipfile
 from collections import Counter
 from datetime import datetime
-from zoneinfo import ZoneInfo
+from urllib.parse import urljoin
 
 import pandas as pd
 import streamlit as st
@@ -577,6 +579,10 @@ for key, default in {
     "pending_text": None,
     "current": None,
     "history": [],
+    "dev_unlocked": False,
+    "dev_open": False,
+    "dev_files": {},
+    "dev_selected": [],
 }.items():
     if key not in st.session_state:
         st.session_state[key] = default
@@ -588,7 +594,7 @@ for key, default in {
 # the important values in server memory and restore it on the next run.
 # =====================================================
 
-PERSIST_KEYS = ["history", "current", "audio_data"]
+PERSIST_KEYS = ["history", "current", "audio_data", "dev_files"]
 MAX_HISTORY = 50
 
 
@@ -626,6 +632,21 @@ def rerun():
     persist()
     st.rerun()
 
+
+# =====================================================
+# DEVELOPER OPTIONS - constants
+# =====================================================
+
+
+def get_secret(name, default=None):
+    try:
+        return st.secrets[name]
+    except Exception:
+        return os.environ.get(name, default)
+
+
+# Optional: set DEV_PASSWORD in secrets to change it without touching the code.
+DEV_PASSWORD = str(get_secret("DEV_PASSWORD", "acoe"))
 
 # =====================================================
 # SIDEBAR
@@ -669,6 +690,32 @@ if st.sidebar.button("Clear history"):
     st.session_state.current = None
     rerun()
 
+st.sidebar.markdown("## 🛠️ Developer Options")
+
+if not st.session_state.dev_unlocked:
+    dev_pw = st.sidebar.text_input("🔒 Developer password", type="password", key="dev_pw")
+    if dev_pw:
+        if hmac.compare_digest(dev_pw.encode(), DEV_PASSWORD.encode()):
+            st.session_state.dev_unlocked = True
+            rerun()
+        else:
+            st.sidebar.error("Incorrect password.")
+else:
+    st.sidebar.success("Developer mode is on")
+
+    if st.session_state.dev_open:
+        if st.sidebar.button("⬅️ Back to Assistant", key="dev_back_sidebar"):
+            st.session_state.dev_open = False
+            rerun()
+    elif st.sidebar.button("📥 Open Data Downloader", key="dev_open_btn"):
+        st.session_state.dev_open = True
+        rerun()
+
+    if st.sidebar.button("🔒 Lock developer mode", key="dev_lock"):
+        st.session_state.dev_unlocked = False
+        st.session_state.dev_open = False
+        rerun()
+
 # =====================================================
 # PIPELINE
 # =====================================================
@@ -688,8 +735,7 @@ def build_extract_prompt(kind, text=None):
         source = ""
     else:
         steps = (
-            "1. Detect the language of the customer text below.\n" 
-            "(Strictly Consider the original languages whether it may have or have not been typed in latin text, like for Hinglish - consider Hindi, for Banglish - consider Bengali and so on)\n"
+            "1. Detect the language of the customer text below.\n"
             "2. Copy the customer text as the transcript, unchanged.\n"
             "3. Translate the text into English."
         )
@@ -853,7 +899,7 @@ def run_pipeline(job, status):
     timings = {}
     result = {
         "id": int(time.time() * 1000),
-        "time": datetime.now(ZoneInfo("Asia/Kolkata")).strftime("%d %b %Y, %H:%M:%S"),
+        "time": datetime.now().strftime("%d %b %Y, %H:%M:%S"),
         "kind": job["kind"],
         "input_audio": job.get("audio"),
         "played": False,
@@ -1341,8 +1387,445 @@ def input_card():
 
 
 # =====================================================
+# DEVELOPER OPTIONS - data downloader
+# Scrapes the latest product pages from the bank website so the
+# Bank_Product/*.xlsx files can be refreshed. (Logic from scrape.ipynb)
+# =====================================================
+
+REQUEST_DELAY = 0.3  # seconds between page requests, to stay polite to the site
+XLSX_MIME = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+ILLEGAL_XLSX_CHARS = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f]")
+
+SCRAPE_HEADERS = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                  "AppleWebKit/537.36 (KHTML, like Gecko) "
+                  "Chrome/123.0.0.0 Safari/537.36",
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+    "Accept-Language": "en-US,en;q=0.9",
+    "Referer": "https://www.bankofbaroda.in/",
+    "Connection": "keep-alive",
+}
+
+# category -> (listing page, how sure we are). The developer can edit these in the UI.
+SOURCE_URLS = {
+    "home loan": ("https://bankofbaroda.bank.in/loans/home-loan", "site"),
+    "vehicle loan": ("https://bankofbaroda.bank.in/loans/vehicle-loan", "verify"),
+    "education loan": ("https://bankofbaroda.bank.in/loans/education-loan", "notebook"),
+    "personal loan": ("https://bankofbaroda.bank.in/loans/personal-loan", "verify"),
+    "mortgage loan": ("https://bankofbaroda.bank.in/loans/mortgage-loan", "verify"),
+    "term deposits": ("https://bankofbaroda.bank.in/personal-banking/accounts/term-deposit", "verify"),
+    "savings account": ("https://bankofbaroda.bank.in/personal-banking/accounts/savings-accounts", "verify"),
+    "salary account": ("https://bankofbaroda.bank.in/personal-banking/accounts/salary-accounts", "verify"),
+    "current account": ("https://bankofbaroda.bank.in/personal-banking/accounts/current-accounts", "verify"),
+    "debit card": ("https://bankofbaroda.bank.in/digital-products/cards/debit-cards", "notebook"),
+}
+
+SOURCE_NOTE = {
+    "notebook": "✅ from your notebook",
+    "site": "✅ page found on the bank site",
+    "verify": "⚠️ best guess, please verify",
+}
+
+# columns used by the card-style pages (the notebook's fallback branch)
+CARD_SECTIONS = [
+    "benefits", "features", "eligible_customer_segments",
+    "fees_charges", "card_limits", "dos_and_donts",
+]
+
+
+def normalize_heading(heading: str) -> str:
+    if not heading:
+        return None
+    heading = heading.strip()
+    heading = heading.lower()
+
+    # Replace common variations
+    heading = heading.replace("&", "and")
+    heading = heading.replace("’", "'")
+
+    # Collapse multiple spaces
+    heading = re.sub(r"\s+", " ", heading)
+
+    # Map known variants
+    mapping = {
+        "fees/charges": "Fees and Charges",
+        "fees & charges": "Fees and Charges",
+        "fees_charges": "Fees and Charges",
+        "fees and charges": "Fees and Charges",
+        "do's and don'ts": "Do's and Don'ts",
+        "do's & don'ts": "Do's and Don'ts",
+        "dos_and_donts": "Do's and Don'ts",
+        "most important terms and conditions (mitc)": "Terms and Conditions",
+        "terms & conditions": "Terms and Conditions",
+        "terms and conditions": "Terms and Conditions",
+        "eligibility criteria": "Eligibility",
+        "steps to apply": "Steps to Apply",
+        "documents required": "Documents Required",
+        "audio guide": "Audio Guide",
+        "benefits": "Benefits",
+        "features": "Features",
+        "eligible_customer_segments": "Eligibility",
+        "card_limits": "Card Limits",
+    }
+
+    return mapping.get(heading, heading.title())
+
+
+def _table_to_text(table):
+    rows = []
+    for tr in table.find_all("tr")[1:]:  # skip header row
+        cells = [td.get_text(" ", strip=True) for td in tr.find_all(["td", "th"])]
+        if cells:
+            rows.append(" : ".join(cells))
+    return "\n".join(rows)
+
+
+def parse_product_page(soup, link, base_url):
+    """One product page -> one-row DataFrame (same logic as the notebook)."""
+    tabs = soup.find_all("div", class_="tab")
+
+    tab_contents = {"Card": link.replace(base_url, ""), "URL": link}
+
+    for tab in tabs:
+        h3 = tab.find("h3")
+        heading = h3.get_text(strip=True) if h3 else None
+        if heading and ":" in heading:
+            tab_contents["Card"] = heading.split(":", 1)[0].strip()
+            heading = heading.split(":", 1)[1].strip()
+
+        heading = normalize_heading(heading)
+        if not heading:  # a tab without a heading has nothing to label it with
+            continue
+
+        # Case 1: Table present
+        table = tab.find("table")
+        if table:
+            tab_contents[heading] = _table_to_text(table)
+
+        # Case 2: List items or paragraphs
+        else:
+            texts = [li.get_text(" ", strip=True) for li in tab.find_all("li")]
+            texts += [p.get_text(" ", strip=True) for p in tab.find_all("p")]
+            tab_contents[heading] = "\n".join(texts)
+
+    if len(tab_contents) <= 2:
+        title = soup.find("title")
+        tab_contents["Card"] = title.text.strip() if title else tab_contents["Card"]
+
+        # Collect all elements with an id (both section and div)
+        for block in soup.find_all(["section", "div"], id=True):
+            block_id = block.get("id")
+            block_data = []
+
+            for table in block.find_all("table"):
+                text = _table_to_text(table)
+                if text:
+                    block_data.append(text)
+
+            for li in block.find_all("li"):
+                block_data.append(li.get_text(" ", strip=True))
+            for p in block.find_all("p"):
+                block_data.append(p.get_text(" ", strip=True))
+
+            if block_data:
+                tab_contents[block_id] = "\n".join(block_data)
+
+        df = pd.DataFrame([tab_contents])
+        if any(c in tab_contents for c in CARD_SECTIONS):
+            df = df.reindex(columns=["Card", "URL"] + CARD_SECTIONS)
+            df.columns = list(df.columns[:2]) + [normalize_heading(c) for c in df.columns[2:]]
+    else:
+        df = pd.DataFrame([tab_contents])
+
+    # tidy repeated spaces (skips empty cells, which are not text)
+    return df.apply(
+        lambda col: col.map(lambda v: re.sub(r" +", " ", v) if isinstance(v, str) else v)
+    )
+
+
+def scrape_category(url, on_event=None, delay=REQUEST_DELAY):
+    """Scrape every product page linked from a category page.
+
+    Returns (DataFrame, failed) where failed is a list of (url, error).
+    on_event(kind, **info) is called so the UI can show progress.
+    """
+    import requests
+    from bs4 import BeautifulSoup
+
+    emit = on_event or (lambda *args, **kwargs: None)
+
+    emit("fetch_listing", url=url)
+    response = requests.get(url, headers=SCRAPE_HEADERS, timeout=30)
+    response.raise_for_status()
+    soup = BeautifulSoup(response.text, "html.parser")
+
+    # Find all product items
+    all_links = []
+    for item in soup.find_all("li", class_="item"):
+        for a in item.find_all("a", href=True):
+            href = urljoin(url, a["href"])
+            if url not in href:
+                continue
+            if a["href"] != "#":  # skip dummy links
+                all_links.append(href)
+
+    links = list(dict.fromkeys(all_links))  # unique, keeps page order
+    emit("links", total=len(links))
+
+    frames, failed = [], []
+    for n, link in enumerate(links, 1):
+        emit("page_start", index=n, total=len(links), url=link)
+        try:
+            page = requests.get(link, headers=SCRAPE_HEADERS, timeout=30)
+            page.raise_for_status()
+            page_soup = BeautifulSoup(page.text, "html.parser")
+            frames.append(parse_product_page(page_soup, link, url))
+            emit("page_done", index=n, total=len(links), url=link)
+        except Exception as e:  # skip the page, but tell the developer
+            failed.append((link, str(e)))
+            emit("page_failed", index=n, total=len(links), url=link, error=str(e))
+        time.sleep(delay)
+
+    final_df = pd.concat(frames, ignore_index=True) if frames else pd.DataFrame()
+    return final_df, failed
+
+
+def df_to_xlsx_bytes(df):
+    clean = df.apply(
+        lambda col: col.map(lambda v: ILLEGAL_XLSX_CHARS.sub("", v) if isinstance(v, str) else v)
+    )
+    buf = io.BytesIO()
+    clean.to_excel(buf, index=False)
+    return buf.getvalue()
+
+
+def build_zip(files):
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+        for f in files.values():
+            zf.writestr(f["name"], f["bytes"])
+    return buf.getvalue()
+
+
+def short_url(url, width=70):
+    return url if len(url) <= width else "…" + url[-(width - 1):]
+
+
+def run_download(selected, urls):
+    """Scrape the chosen categories, showing live progress."""
+    total = len(selected)
+    started = time.perf_counter()
+    done_ok = 0
+
+    overall = st.progress(0.0, text=f"0 of {total} categories done")
+    status = st.status("Downloading the latest data…", expanded=True)
+
+    with status:
+        page_bar = st.progress(0.0, text="Starting…")
+
+        for k, domain in enumerate(selected):
+            url = urls[domain].strip()
+            label = domain.title()
+            st.write(f"🔎 **{label}**  ·  {short_url(url)}")
+            page_bar.progress(0.0, text=f"{label}: opening the listing page…")
+
+            def on_event(kind, label=label, **info):
+                if kind == "links":
+                    page_bar.progress(0.0, text=f"{label}: found {info['total']} product pages")
+                elif kind == "page_start":
+                    page_bar.progress(
+                        (info["index"] - 1) / info["total"],
+                        text=f"{label}: page {info['index']} of {info['total']}  ·  {short_url(info['url'], 55)}",
+                    )
+                elif kind == "page_done":
+                    page_bar.progress(
+                        info["index"] / info["total"],
+                        text=f"{label}: page {info['index']} of {info['total']} done",
+                    )
+                elif kind == "page_failed":
+                    st.write(f"⚠️ Skipped {short_url(info['url'], 60)} ({info['error']})")
+
+            t0 = time.perf_counter()
+            try:
+                df, failed = scrape_category(url, on_event)
+            except Exception as e:
+                st.error(f"{label}: could not open {url}. {e}")
+                overall.progress((k + 1) / total, text=f"{k + 1} of {total} categories done")
+                continue
+
+            if df.empty:
+                st.warning(
+                    f"{label}: no product pages were read. Check the source URL "
+                    "(the listing page must contain links inside <li class='item'>)."
+                )
+                overall.progress((k + 1) / total, text=f"{k + 1} of {total} categories done")
+                continue
+
+            data = df_to_xlsx_bytes(df)
+            st.session_state.dev_files[domain] = {
+                "name": f"{'_'.join(domain.split())}.xlsx",
+                "bytes": data,
+                "df": df,
+                "rows": len(df),
+                "cols": df.shape[1],
+                "url": url,
+                "failed": failed,
+                "seconds": time.perf_counter() - t0,
+                "scraped_at": datetime.now().strftime("%d %b %Y, %H:%M"),
+            }
+            done_ok += 1
+            st.write(f"✅ {label}: {len(df)} products saved" + (f", {len(failed)} skipped" if failed else ""))
+            overall.progress((k + 1) / total, text=f"{k + 1} of {total} categories done")
+
+        elapsed = time.perf_counter() - started
+        status.update(
+            label=f"Finished: {done_ok} of {total} categories in {elapsed:.0f}s",
+            state="complete" if done_ok else "error",
+            expanded=False,
+        )
+
+    if done_ok:
+        st.toast("Download complete", icon="✅")
+
+
+def render_dev_files():
+    files = st.session_state.dev_files
+    if not files:
+        st.info("No files yet. Choose categories above and press **Start download**.")
+        return
+
+    st.markdown("## 📦 Ready to download")
+
+    for domain, f in files.items():
+        with st.container(border=True):
+            c1, c2, c3, c4 = st.columns([3.2, 2.4, 2.2, 1.8])
+            c1.markdown(f"📄 **{f['name']}**")
+            c1.caption(f"{domain.title()} · {f['scraped_at']}")
+            c2.markdown(
+                chips([f"{f['rows']} products", f"{f['cols']} columns"]),
+                unsafe_allow_html=True,
+            )
+            size_kb = len(f["bytes"]) / 1024
+            note = f"{size_kb:.0f} KB · {f['seconds']:.0f}s"
+            if f["failed"]:
+                note += f" · ⚠️ {len(f['failed'])} skipped"
+            c3.caption(note)
+            c4.download_button(
+                "⬇️ Download",
+                f["bytes"],
+                file_name=f["name"],
+                mime=XLSX_MIME,
+                key=f"dev_dl_{domain}",
+            )
+
+    left, right = st.columns([2, 1])
+    left.download_button(
+        f"🗜️ Download all {len(files)} files (ZIP)",
+        build_zip(files),
+        file_name="bob_product_data.zip",
+        mime="application/zip",
+        key="dev_dl_zip",
+        type="primary",
+    )
+    if right.button("🗑 Clear downloaded files", key="dev_clear_files"):
+        st.session_state.dev_files = {}
+        rerun()
+
+    skipped = {d: f["failed"] for d, f in files.items() if f["failed"]}
+    if skipped:
+        with st.expander("⚠️ Pages that were skipped"):
+            for d, items in skipped.items():
+                st.markdown(f"**{d.title()}**")
+                for link, err in items:
+                    st.caption(f"{link}  —  {err}")
+
+    st.markdown("### 👁️ Preview")
+    chosen = st.selectbox(
+        "Preview a file",
+        list(files),
+        format_func=str.title,
+        label_visibility="collapsed",
+        key="dev_preview",
+    )
+    st.dataframe(files[chosen]["df"], hide_index=True, width="stretch")
+
+
+def render_dev_page():
+    head, back = st.columns([5, 1])
+    head.markdown("## 📥 Data Downloader")
+    if back.button("⬅️ Back", key="dev_back_top"):
+        st.session_state.dev_open = False
+        rerun()
+
+    st.caption(
+        "Fetch the latest product data from the bank website, review it, then replace "
+        "the matching files in the Bank_Product/ folder of your repository."
+    )
+
+    try:
+        import bs4  # noqa: F401
+        import requests  # noqa: F401
+    except ImportError:
+        st.error("Missing packages. Run `pip install requests beautifulsoup4` (they are in requirements.txt).")
+        return
+
+    selected = st.multiselect(
+        "Categories to download",
+        DOMAINS,
+        key="dev_selected",
+        format_func=str.title,
+        placeholder="Choose one or more categories…",
+    )
+
+    col_all, col_none, _ = st.columns([1, 1, 4])
+    col_all.button(
+        "Select all", key="dev_select_all",
+        on_click=lambda: st.session_state.update(dev_selected=list(DOMAINS)),
+    )
+    col_none.button(
+        "Clear", key="dev_select_none",
+        on_click=lambda: st.session_state.update(dev_selected=[]),
+    )
+
+    urls = {}
+    with st.expander("🔗 Source pages (editable)", expanded=False):
+        if not selected:
+            st.caption("Pick a category to see and edit its source page.")
+        for domain in selected:
+            default_url, level = SOURCE_URLS[domain]
+            urls[domain] = st.text_input(
+                f"{domain.title()}  ·  {SOURCE_NOTE[level]}",
+                value=default_url,
+                key=f"dev_url_{domain}",
+            )
+
+    if st.button(
+        f"🚀 Start download ({len(selected)} selected)" if selected else "🚀 Start download",
+        type="primary",
+        disabled=not selected,
+        key="dev_start",
+    ):
+        st.caption("Keep this tab open until it finishes.")
+        run_download(selected, urls)
+
+    render_dev_files()
+
+    st.info(
+        "After downloading, edit the Excel files if you want, then put them in the "
+        "**Bank_Product/** folder of your repo (same file names) and commit. "
+        "The assistant reads them from there."
+    )
+
+
+# =====================================================
 # MAIN LAYOUT
 # =====================================================
+
+# Developer page replaces the assistant while it is open
+if st.session_state.dev_unlocked and st.session_state.dev_open:
+    render_dev_page()
+    persist()
+    st.stop()
 
 kpi_slot = st.empty()
 
