@@ -13,6 +13,7 @@ import time
 import uuid
 from collections import Counter
 from datetime import datetime
+from zoneinfo import ZoneInfo
 
 import pandas as pd
 import streamlit as st
@@ -852,7 +853,7 @@ def run_pipeline(job, status):
     timings = {}
     result = {
         "id": int(time.time() * 1000),
-        "time": datetime.now().strftime("%d %b %Y, %H:%M:%S"),
+        "time": datetime.now(ZoneInfo("Asia/Kolkata")).strftime("%d %b %Y, %H:%M:%S"),
         "kind": job["kind"],
         "input_audio": job.get("audio"),
         "played": False,
