@@ -91,11 +91,17 @@ ANSWER_KEYS = ["RESPONSE", "TRANSLATE"]
 st.markdown("""
 <style>
 
+/* ===== BOB PALETTE =====
+   orange  #ff7a00 / #ff8c1a / #ffa64d     blue  #0059b3     navy  #002e6e
+   tints   #fff4e6 (orange)  #eef5ff (blue)   lines #e3eaf6                 */
+
 /* ===== GLOBAL ===== */
 .stApp {
-    background: #ffffff;
+    background: linear-gradient(180deg, #ffffff 0%, #fffaf4 55%, #f2f7ff 100%);
     font-family: 'Segoe UI', sans-serif;
 }
+
+header[data-testid="stHeader"] { background: transparent; }
 
 /* ===== HEADINGS ===== */
 h1, h2, h3, h4 {
@@ -103,12 +109,17 @@ h1, h2, h3, h4 {
     font-weight: 700;
 }
 
-/* ===== SIDEBAR ===== */
-section[data-testid="stSidebar"] {
-    background: linear-gradient(180deg, #ffa64d, #ff8c1a);
+h2 {
+    border-left: 5px solid #ff7a00;
+    padding-left: 10px;
 }
 
-/* Sidebar text only */
+/* ===== SIDEBAR ===== */
+section[data-testid="stSidebar"] {
+    background: linear-gradient(180deg, #ffb870 0%, #ff8c1a 50%, #ff7a00 100%);
+    border-right: 1px solid rgba(0, 46, 110, 0.15);
+}
+
 section[data-testid="stSidebar"] label,
 section[data-testid="stSidebar"] p,
 section[data-testid="stSidebar"] span,
@@ -118,23 +129,65 @@ section[data-testid="stSidebar"] h3 {
     color: white !important;
 }
 
+section[data-testid="stSidebar"] h2 {
+    border-left: none;
+    padding-left: 0;
+    border-bottom: 2px solid rgba(255, 255, 255, 0.45);
+    padding-bottom: 4px;
+    font-size: 1.15rem;
+}
+
 /* ===== BUTTONS ===== */
+/* secondary = BOB blue */
 .stButton > button,
 .stDownloadButton > button,
 div[data-testid="stFormSubmitButton"] > button {
-    background-color: #0059b3;
+    background: linear-gradient(135deg, #0059b3, #003f80);
     color: white;
-    border-radius: 6px;
+    border-radius: 8px;
     font-weight: 600;
     border: none;
-    transition: 0.3s;
+    box-shadow: 0 2px 6px rgba(0, 63, 128, 0.25);
+    transition: all 0.2s ease-in-out;
 }
 
 .stButton > button:hover,
 .stDownloadButton > button:hover,
 div[data-testid="stFormSubmitButton"] > button:hover {
-    background-color: #003f80;
+    background: linear-gradient(135deg, #0a6bd0, #0059b3);
     color: white;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 10px rgba(0, 63, 128, 0.3);
+}
+
+/* primary = BOB orange */
+.stButton > button[kind="primary"],
+div[data-testid="stFormSubmitButton"] > button[kind="primaryFormSubmit"],
+button[data-testid="stBaseButton-primary"],
+button[data-testid="stBaseButton-primaryFormSubmit"] {
+    background: linear-gradient(135deg, #ff8c1a, #ff7a00);
+    box-shadow: 0 2px 6px rgba(255, 122, 0, 0.35);
+}
+
+.stButton > button[kind="primary"]:hover,
+button[data-testid="stBaseButton-primary"]:hover,
+button[data-testid="stBaseButton-primaryFormSubmit"]:hover {
+    background: linear-gradient(135deg, #ffa64d, #ff8c1a);
+    box-shadow: 0 4px 10px rgba(255, 122, 0, 0.4);
+}
+
+/* button text must stay white (markdown rule below would turn it dark) */
+.stButton button p,
+.stDownloadButton button p,
+div[data-testid="stFormSubmitButton"] button p {
+    color: #ffffff !important;
+    font-weight: 600;
+}
+
+/* sidebar buttons: navy so they stand out on orange */
+section[data-testid="stSidebar"] .stButton > button {
+    background: linear-gradient(135deg, #003f80, #002e6e);
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
 }
 
 /* ===== INFO / SUCCESS / WARNING / ERROR ===== */
@@ -143,129 +196,117 @@ div[data-testid="stAlert"] {
     padding: 12px;
 }
 
-/* INFO */
 div[data-testid="stAlert"][kind="info"] {
-    background-color: #ffe6cc !important;
-    border-left: 5px solid #ff8c1a !important;
+    background-color: #eef5ff !important;
+    border-left: 5px solid #0059b3 !important;
 }
 
-div[data-testid="stAlert"][kind="info"] * {
-    color: black !important;
-}
+div[data-testid="stAlert"][kind="info"] * { color: #1f2a3c !important; }
 
-/* SUCCESS */
 div[data-testid="stAlert"][kind="success"] {
-    background-color: #d4edda !important;
+    background-color: #e6f6ec !important;
     border-left: 5px solid #28a745 !important;
 }
 
-div[data-testid="stAlert"][kind="success"] * {
-    color: black !important;
-}
+div[data-testid="stAlert"][kind="success"] * { color: #1f2a3c !important; }
 
-/* WARNING */
 div[data-testid="stAlert"][kind="warning"] {
-    background-color: #fff3cd !important;
-    border-left: 5px solid #ffc107 !important;
+    background-color: #fff4e0 !important;
+    border-left: 5px solid #ff8c1a !important;
 }
 
-div[data-testid="stAlert"][kind="warning"] * {
-    color: black !important;
-}
+div[data-testid="stAlert"][kind="warning"] * { color: #1f2a3c !important; }
 
-/* ERROR */
 div[data-testid="stAlert"][kind="error"] {
-    background-color: #f8d7da !important;
+    background-color: #fdecee !important;
     border-left: 5px solid #dc3545 !important;
 }
 
-div[data-testid="stAlert"][kind="error"] * {
-    color: black !important;
-}
+div[data-testid="stAlert"][kind="error"] * { color: #1f2a3c !important; }
 
-/* ===== SELECTBOX ===== */
+/* ===== INPUTS ===== */
 div[data-baseweb="select"] > div {
     background-color: white !important;
     color: black !important;
-    border-radius: 6px;
+    border-radius: 8px;
 }
 
-/* Dropdown items */
-div[role="listbox"] {
-    color: black !important;
+div[role="listbox"] { color: black !important; }
+
+div[data-baseweb="textarea"] {
+    border-radius: 10px;
+    border: 1px solid #c9d8ee;
+    background: #ffffff;
+}
+
+div[data-baseweb="textarea"]:focus-within {
+    border-color: #ff7a00 !important;
+    box-shadow: 0 0 0 2px rgba(255, 122, 0, 0.2);
+}
+
+div[data-testid="stExpander"] {
+    border: 1px solid #e3eaf6;
+    border-radius: 12px;
+    background: #ffffff;
 }
 
 /* ===== TABS ===== */
 button[data-baseweb="tab"] {
     font-weight: 600;
     color: #002e6e;
-    background-color: #f5f7fb;
-    border-radius: 6px 6px 0 0;
-    margin-right: 3px;
-    padding: 4px 10px;
+    background-color: #eef5ff;
+    border-radius: 8px 8px 0 0;
+    margin-right: 4px;
+    padding: 6px 12px;
     font-size: 13px;
     transition: all 0.2s ease-in-out;
 }
 
 button[data-baseweb="tab"]:hover {
-    background-color: #e6f0ff;
+    background-color: #dcebff;
     color: #0059b3;
 }
 
 button[data-baseweb="tab"][aria-selected="true"] {
-    background-color: #ff7a00 !important;
+    background: linear-gradient(135deg, #ff8c1a, #ff7a00) !important;
     color: white !important;
     border-bottom: 2px solid #ff7a00;
 }
 
-div[data-baseweb="tab-list"] {
-    border-bottom: 1px solid #eee;
-}
+div[data-baseweb="tab-list"] { border-bottom: 1px solid #e3eaf6; }
 
-div[data-baseweb="tab-highlight"] {
-    background-color: transparent !important;
-}
+div[data-baseweb="tab-highlight"] { background-color: transparent !important; }
 
 /* ===== MARKDOWN TEXT ===== */
-p, li, span {
-    color: black;
-}
+p, li, span { color: black; }
 
 /* ===== SCROLLBAR ===== */
-::-webkit-scrollbar {
-    height: 6px;
-    width: 6px;
-}
+::-webkit-scrollbar { height: 6px; width: 6px; }
 
 ::-webkit-scrollbar-thumb {
     background: #0059b3;
     border-radius: 10px;
 }
 
-/* ===== MARKDOWN TEXT ===== */
-/* Removes odd indentation/margin on first line */
 [data-testid="stMarkdownContainer"] p {
     margin-top: 0rem !important;
     margin-bottom: 0.6rem !important;
     padding-left: 0rem !important;
-    color: #1f1f1f !important;
+    color: #1f2a3c !important;
     line-height: 1.6;
     font-size: 15px;
 }
 
-/* Markdown lists */
 [data-testid="stMarkdownContainer"] li {
-    color: #1f1f1f !important;
+    color: #1f2a3c !important;
     margin-bottom: 0.25rem;
 }
 
-/* Bold text */
 [data-testid="stMarkdownContainer"] strong {
     color: #ff7a00 !important;
     font-weight: 700;
 }
 
-/* Inline code */
 [data-testid="stMarkdownContainer"] code {
     background-color: #fff4e6;
     color: #d35400;
@@ -273,7 +314,6 @@ p, li, span {
     border-radius: 5px;
 }
 
-/* Links */
 [data-testid="stMarkdownContainer"] a {
     color: #0059b3 !important;
     text-decoration: none;
@@ -282,16 +322,22 @@ p, li, span {
 
 /* ===== BOB SHADOW BOX ===== */
 .bob-box {
-    background: #fff7ed;              /* very light BOB orange */
-    border-left: 5px solid #ff7a00;  /* BOB orange accent */
+    background: linear-gradient(135deg, #fff7ed, #fff1e0);
+    border-left: 5px solid #ff7a00;
     padding: 18px;
     border-radius: 12px;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+    box-shadow: 0 4px 12px rgba(0, 46, 110, 0.08);
     margin-top: 10px;
     margin-bottom: 15px;
-    color: #1f1f1f;
+    color: #1f2a3c;
     line-height: 1.6;
     font-size: 15px;
+}
+
+/* blue variant for what the assistant understood */
+.bob-box.blue {
+    background: linear-gradient(135deg, #f3f8ff, #e8f1ff);
+    border-left-color: #0059b3;
 }
 
 .bob-box p {
@@ -300,30 +346,31 @@ p, li, span {
     font-size: 15px;
 }
 
-.bob-box strong {
-    color: #ff7a00;
-}
+.bob-box strong { color: #ff7a00; }
 
 /* ===== DASHBOARD ADDITIONS ===== */
 
-/* KPI cards */
 .kpi-card {
-    background: #ffffff;
-    border: 1px solid #e3eaf6;
+    background: linear-gradient(180deg, #ffffff, #fff8f0);
+    border: 1px solid #ffe0bd;
     border-top: 4px solid #ff7a00;
-    border-radius: 12px;
+    border-radius: 14px;
     padding: 12px 16px;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.06);
+    box-shadow: 0 4px 14px rgba(255, 122, 0, 0.1);
     height: 100%;
 }
 
-.kpi-card.blue { border-top-color: #0059b3; }
+.kpi-card.blue {
+    background: linear-gradient(180deg, #ffffff, #f2f7ff);
+    border: 1px solid #cfe0f7;
+    border-top: 4px solid #0059b3;
+    box-shadow: 0 4px 14px rgba(0, 89, 179, 0.1);
+}
 
 .kpi-label { color: #5b6b82; font-size: 13px; font-weight: 600; }
 .kpi-value { color: #002e6e; font-size: 28px; font-weight: 700; line-height: 1.25; }
 .kpi-sub   { color: #7a8699; font-size: 12px; min-height: 16px; }
 
-/* Chips */
 .chip {
     display: inline-block;
     background: #e6f0ff;
@@ -337,17 +384,17 @@ p, li, span {
 }
 
 .chip.orange {
-    background: #fff4e6;
-    color: #d35400;
+    background: #fff1e0;
+    color: #c25e00;
     border-color: #ffcf99;
 }
 
-/* Pipeline stage strip */
 .stage-row { display: flex; flex-wrap: wrap; gap: 8px; margin: 6px 0 14px 0; }
 
 .stage {
-    background: #f5f7fb;
-    border: 1px solid #dbe5f3;
+    background: #ffffff;
+    border: 1px solid #cfe0f7;
+    border-left: 4px solid #0059b3;
     border-radius: 8px;
     padding: 6px 12px;
     font-size: 13px;
@@ -357,7 +404,6 @@ p, li, span {
 
 .stage b { color: #ff7a00; }
 
-/* How-it-works cards */
 .how-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
@@ -366,10 +412,16 @@ p, li, span {
 }
 
 .how-card {
-    background: #f5f7fb;
-    border: 1px solid #dbe5f3;
-    border-radius: 12px;
+    background: #ffffff;
+    border: 1px solid #ffe0bd;
+    border-radius: 14px;
     padding: 14px;
+    box-shadow: 0 3px 10px rgba(255, 122, 0, 0.08);
+}
+
+.how-card:nth-child(even) {
+    border-color: #cfe0f7;
+    box-shadow: 0 3px 10px rgba(0, 89, 179, 0.08);
 }
 
 .how-num {
@@ -386,10 +438,11 @@ p, li, span {
     margin-bottom: 6px;
 }
 
+.how-card:nth-child(even) .how-num { background: #0059b3; }
+
 .how-title { color: #002e6e; font-weight: 700; font-size: 15px; }
 .how-text  { color: #4a5a70; font-size: 13px; line-height: 1.45; }
 
-/* Fallback banner when the image file is missing */
 .fallback-banner {
     background: linear-gradient(90deg, #ff7a00, #ff8c1a);
     color: #ffffff;
@@ -425,9 +478,10 @@ def esc(text) -> str:
     return html.escape(str(text or "")).replace("\n", "<br>")
 
 
-def bob_box(text) -> str:
+def bob_box(text, tone="") -> str:
+    """tone: '' (orange, answers) or 'blue' (what the assistant understood)."""
     return (
-        '<div class="bob-box" style="padding: 1rem; border-radius: 10px; '
+        f'<div class="bob-box {tone}" style="padding: 1rem; border-radius: 10px; '
         f'word-wrap: break-word;">{esc(text) or "&nbsp;"}</div>'
     )
 
@@ -520,7 +574,6 @@ generation_models = voice_models + gemma_models
 for key, default in {
     "audio_data": None,
     "confirmed_audio": False,
-    "allow_recording": False,
     "pending_text": None,
     "current": None,
     "history": [],
@@ -535,7 +588,7 @@ for key, default in {
 # the important values in server memory and restore it on the next run.
 # =====================================================
 
-PERSIST_KEYS = ["history", "current", "audio_data", "allow_recording"]
+PERSIST_KEYS = ["history", "current", "audio_data"]
 MAX_HISTORY = 50
 
 
@@ -598,52 +651,16 @@ st.sidebar.markdown("## 🎛️ Preferences")
 
 AUTOPLAY = st.sidebar.toggle("🔊 Auto-play spoken answer", value=True)
 
+AUTO_SUBMIT = st.sidebar.toggle(
+    "⚡ Auto-submit after recording",
+    value=False,
+    help="Skip the 'Get answer' click: the question is sent as soon as you stop speaking.",
+)
+
 TOP_N = st.sidebar.slider(
     "🏦 Products to consider", min_value=3, max_value=30, value=10,
     help="How many matching products are sent to the model to build the answer.",
 )
-
-st.sidebar.markdown("## 🎤 Recorder")
-
-if st.sidebar.button("🆕 New Recording"):
-    st.session_state.audio_data = None
-    st.session_state.confirmed_audio = False
-    st.session_state.allow_recording = True
-    rerun()
-
-if not st.session_state.allow_recording and not st.session_state.audio_data:
-    st.sidebar.info("Click 'New Recording' to start.")
-
-elif st.session_state.allow_recording:
-    with st.sidebar:
-        recorded = audio_recorder(
-            text="🎤 Click to Start / Stop Recording",
-            recording_color="#e74c3c",
-            neutral_color="#2ecc71",
-            icon_name="microphone",
-            icon_size="2x",
-            pause_threshold=2.0,
-            sample_rate=SAMPLE_RATE,
-        )
-
-    if recorded:
-        if len(recorded) < MIN_AUDIO_BYTES:
-            st.sidebar.warning("⚠ No voice detected.\n\nPlease record again.")
-            st.session_state.audio_data = None
-        else:
-            st.sidebar.success("✅ Voice detected successfully")
-            st.session_state.audio_data = recorded
-            st.session_state.allow_recording = False
-            rerun()
-
-if st.session_state.audio_data:
-    st.sidebar.markdown("## 🎧 Recorded Audio")
-    st.sidebar.audio(st.session_state.audio_data)
-    st.sidebar.info("Please verify the recorded voice input.")
-
-    if st.sidebar.button("✅ Continue with this Audio"):
-        st.session_state.confirmed_audio = True
-        rerun()
 
 st.sidebar.markdown("## 🧹 Session")
 
@@ -813,12 +830,12 @@ def retrieve_products(df, keywords, top_n):
     return df.assign(**{"Keyword hits": 0}).head(top_n), "fallback"
 
 
-def stream_text(model, contents, placeholder):
+def stream_text(model, contents, placeholder, tone=""):
     text = ""
     for chunk in client.models.generate_content_stream(model=model, contents=contents):
         if chunk.text:
             text += chunk.text
-            placeholder.markdown(bob_box(text), unsafe_allow_html=True)
+            placeholder.markdown(bob_box(text, tone), unsafe_allow_html=True)
     return text
 
 
@@ -855,7 +872,7 @@ def run_pipeline(job, status):
     else:
         contents = build_extract_prompt("text", job["text"])
 
-    raw_extract = stream_text(MODEL, contents, placeholder)
+    raw_extract = stream_text(MODEL, contents, placeholder, "blue")
     timings["Understand"] = time.perf_counter() - t0
 
     sections = parse_sections(raw_extract, EXTRACT_KEYS)
@@ -949,19 +966,19 @@ def render_kpis(slot):
     with slot.container():
         c1, c2, c3, c4 = st.columns(4)
         c1.markdown(
-            kpi_card("Questions answered", n, "this session"),
+            kpi_card("💬 Questions answered", n, "this session"),
             unsafe_allow_html=True,
         )
         c2.markdown(
-            kpi_card("Languages used", len(languages), ", ".join(languages[:3]) or "—", "blue"),
+            kpi_card("🌐 Languages used", len(languages), ", ".join(languages[:3]) or "—", "blue"),
             unsafe_allow_html=True,
         )
         c3.markdown(
-            kpi_card("Avg. response time", f"{avg:.1f}s" if avg else "—", "question to spoken answer"),
+            kpi_card("⏱️ Avg. response time", f"{avg:.1f}s" if avg else "—", "question to spoken answer"),
             unsafe_allow_html=True,
         )
         c4.markdown(
-            kpi_card("Helpful answers", helpful, f"{len(rated)} rated" if rated else "rate an answer below", "blue"),
+            kpi_card("👍 Helpful answers", helpful, f"{len(rated)} rated" if rated else "rate an answer below", "blue"),
             unsafe_allow_html=True,
         )
 
@@ -991,7 +1008,7 @@ def render_welcome():
         st.markdown("**Product categories**")
         st.markdown(chips([d.title() for d in DOMAINS]), unsafe_allow_html=True)
 
-    st.info("Use **🆕 New Recording** in the sidebar, or type a question above, to get started.")
+    st.info("Tap the microphone above, or switch to **⌨️ Type**, to get started.")
 
 
 def render_result(r):
@@ -1019,7 +1036,7 @@ def render_result(r):
 
     with tab1:
         st.markdown("## RAW RESPONSE")
-        st.markdown(bob_box(r["raw_extract"]), unsafe_allow_html=True)
+        st.markdown(bob_box(r["raw_extract"], "blue"), unsafe_allow_html=True)
 
     with tab2:
         if r.get("input_audio"):
@@ -1033,7 +1050,7 @@ def render_result(r):
             ("Domain", r["domain"].capitalize()),
         ]:
             st.markdown(f"## {title}")
-            st.markdown(bob_box(value), unsafe_allow_html=True)
+            st.markdown(bob_box(value, "blue"), unsafe_allow_html=True)
 
         st.markdown("## Keywords")
         st.dataframe(
@@ -1224,7 +1241,7 @@ def render_about():
     st.markdown(
         "- Speak close to the microphone and pause when you finish.\n"
         "- Mention the product and what matters to you (amount, tenure, salary, purpose).\n"
-        "- Check the playback before continuing, and re-record if it sounds unclear.\n"
+        "- Check the playback, then press Get answer. Press New Recording to record again.\n"
         "- Browsers only allow microphone access on `localhost` or HTTPS pages."
     )
     st.markdown("## Privacy")
@@ -1242,35 +1259,101 @@ def render_about():
 
 
 # =====================================================
-# MAIN LAYOUT
+# INPUT  (speak or type, all in one place)
 # =====================================================
 
-kpi_slot = st.empty()
 
-with st.expander("⌨️ Prefer typing? Ask your question in any supported language"):
+def speak_panel():
+    if st.session_state.audio_data:
+        st.audio(st.session_state.audio_data)
+
+        col_ask, col_new = st.columns(2)
+        if col_ask.button("✅ Get answer", type="primary", key="ask_audio"):
+            st.session_state.confirmed_audio = True
+            rerun()
+        if col_new.button("🆕 New Recording", key="new_recording"):
+            st.session_state.audio_data = None
+            st.session_state.confirmed_audio = False
+            rerun()
+
+        st.caption(
+            "This recording stays here until you press New Recording, "
+            "so you can ask again or try a different model."
+        )
+        return
+
+    st.caption("Click the microphone and speak. Pause for 2 seconds and it stops by itself.")
+    recorded = audio_recorder(
+        text="🎤 Click to Start / Stop Recording",
+        recording_color="#e74c3c",
+        neutral_color="#ff7a00",
+        icon_name="microphone",
+        icon_size="2x",
+        pause_threshold=2.0,
+        sample_rate=SAMPLE_RATE,
+    )
+
+    if recorded:
+        if len(recorded) < MIN_AUDIO_BYTES:
+            st.warning("⚠ No voice detected. Please record again.")
+        else:
+            st.session_state.audio_data = recorded
+            st.session_state.confirmed_audio = AUTO_SUBMIT
+            rerun()
+
+
+def type_panel():
     with st.form("typed_question", clear_on_submit=True):
         typed = st.text_area(
             "Your question",
             placeholder="e.g. I want an education loan for studying abroad",
-            height=80,
+            height=90,
             label_visibility="collapsed",
         )
-        if st.form_submit_button("Ask BOB AI") and typed.strip():
-            st.session_state.pending_text = typed.strip()
-            rerun()
+        submitted = st.form_submit_button("Ask BOB AI", type="primary")
 
-    st.caption("Or try an example:")
+    if submitted and typed.strip():
+        st.session_state.pending_text = typed.strip()
+        rerun()
+
+    st.caption("Or tap an example:")
     for col, sample in zip(st.columns(len(SAMPLE_QUESTIONS)), SAMPLE_QUESTIONS):
         if col.button(sample, key=f"sample_{sample}"):
             st.session_state.pending_text = sample
             rerun()
 
+
+def input_card():
+    with st.container(border=True):
+        st.markdown("### 🎙️ Ask your question")
+        mode = st.segmented_control(
+            "How would you like to ask?",
+            ["🎤 Speak", "⌨️ Type"],
+            default="🎤 Speak",
+            key="input_mode",
+            label_visibility="collapsed",
+        )
+        st.caption("Works in English, Hindi, Marathi, Tamil, Bengali, Telugu, Kannada, Malayalam and Gujarati.")
+
+        if mode == "⌨️ Type":
+            type_panel()
+        else:
+            speak_panel()
+
+
+# =====================================================
+# MAIN LAYOUT
+# =====================================================
+
+kpi_slot = st.empty()
+
+input_card()
+
 # ---- decide what to process on this run ----
 job = None
 if st.session_state.confirmed_audio and st.session_state.audio_data:
     job = {"kind": "audio", "audio": st.session_state.audio_data}
-    st.session_state.confirmed_audio = False
-    st.session_state.audio_data = None
+    st.session_state.confirmed_audio = False  # the recording itself is kept
 elif st.session_state.pending_text:
     job = {"kind": "text", "text": st.session_state.pending_text}
     st.session_state.pending_text = None
