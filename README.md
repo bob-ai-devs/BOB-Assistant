@@ -14,6 +14,7 @@ A voice-first Streamlit dashboard that lets customers ask about BOB banking prod
 - **Live progress**: streamed model output and per-stage timings
 - **KPI strip, session history, insights charts and 👍/👎 feedback**
 - **Secure by default**: the Gemini API key is read from Streamlit secrets, never from source code
+- **Developer data downloader** (password protected): scrape the latest product data from the bank website, then download each file or a ZIP
 
 ## Project structure
 
@@ -87,6 +88,21 @@ GEMINI_API_KEY = "your-gemini-api-key"
 | Auto-play spoken answer | Plays the answer as soon as it is ready |
 | Products to consider | How many matched products are passed to the model |
 
+## Developer options (refreshing product data)
+
+The sidebar has a **🛠️ Developer Options** section. Enter the developer password (default `department`; set `DEV_PASSWORD` in secrets to change it), then press **📥 Open Data Downloader**.
+
+1. Pick one or more categories in the multiselect (or **Select all**).
+2. Optionally open **Source pages** to check or edit the listing URL for each category.
+3. Press **Start download**. Progress is shown for every category and every product page.
+4. Download each Excel file from its own row, or take everything with **Download all (ZIP)**.
+5. Edit the files if you wish, put them in `Bank_Product/` with the same names, and commit.
+
+Notes:
+- The scraper reads the product links on a category page (`<li class="item">`) and then each product page. Pages that fail are skipped and listed so you can retry.
+- The category URLs for Education Loan and Debit Card come from your notebook, Home Loan from the bank site. The others are best guesses: check them in **Source pages** the first time.
+- Files written on Streamlit Cloud are not permanent, which is why the downloader hands you the files instead of saving them on the server.
+
 ## Troubleshooting
 
 | Problem | Fix |
@@ -96,6 +112,7 @@ GEMINI_API_KEY = "your-gemini-api-key"
 | "Product data … was not found" | Check the file name in `Bank_Product/` matches the category, with underscores (e.g. `home_loan.xlsx`) |
 | Banner missing | Make sure `img - Copy (2).png` is in the repo root; a coloured text banner is shown as a fallback |
 | No spoken answer | gTTS needs internet access; the written answer is still shown |
+| Downloader finds no product pages | Open **Source pages**, check the URL in a browser and make sure the page lists products as links |
 | Model dropdown shows only defaults | The model list could not be fetched; check the key and quota |
 
 ## Disclaimer
