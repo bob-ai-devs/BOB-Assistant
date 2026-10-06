@@ -11,6 +11,7 @@ import os
 import re
 import textwrap
 import time
+import uuid
 from collections import Counter
 from datetime import datetime
 
@@ -42,7 +43,7 @@ SAMPLE_RATE = 16000
 MIN_AUDIO_BYTES = 5000  # recordings smaller than this are treated as silence
 
 DEFAULT_VOICE_MODEL = "gemini-flash-lite-latest"
-DEFAULT_GEN_MODEL = "gemini-flash-lite-latest"
+DEFAULT_GEN_MODEL = "gemma-4-26b-a4b-it"
 
 DOMAINS = [
     "home loan",
@@ -497,8 +498,7 @@ def list_models(_client):
         if "gemma" in name:
             gen_models.append(clean)
 
-    # return sorted(voice_models), sorted(gen_models)
-    return ["gemini-flash-lite-latest"], []
+    return sorted(voice_models), sorted(gen_models)
 
 
 def default_index(options, preferred):
@@ -527,6 +527,52 @@ for key, default in {
 }.items():
     if key not in st.session_state:
         st.session_state[key] = default
+
+# =====================================================
+# SESSION PERSISTENCE
+# st.session_state is wiped by a browser refresh, a dropped connection or
+# an idle reconnect. A random id in the URL (?sid=...) lets us keep a copy of
+# the important values in server memory and restore it on the next run.
+# =====================================================
+
+PERSIST_KEYS = ["history", "current", "audio_data", "allow_recording"]
+MAX_HISTORY = 50
+
+
+@st.cache_resource
+def _server_store():
+    return {}
+
+
+def _session_id():
+    sid = st.query_params.get("sid")
+    if not sid:
+        sid = uuid.uuid4().hex[:16]
+        st.query_params["sid"] = sid
+    return sid
+
+
+SID = _session_id()
+
+if "_restored" not in st.session_state:
+    saved = _server_store().get(SID)
+    if saved:
+        for key in PERSIST_KEYS:
+            if key in saved:
+                st.session_state[key] = saved[key]
+    st.session_state["_restored"] = True
+
+
+def persist():
+    st.session_state.history = st.session_state.history[-MAX_HISTORY:]
+    _server_store()[SID] = {k: st.session_state[k] for k in PERSIST_KEYS}
+
+
+def rerun():
+    """Save first, then rerun, so nothing set on this run is lost."""
+    persist()
+    st.rerun()
+
 
 # =====================================================
 # SIDEBAR
@@ -563,7 +609,7 @@ if st.sidebar.button("🆕 New Recording"):
     st.session_state.audio_data = None
     st.session_state.confirmed_audio = False
     st.session_state.allow_recording = True
-    st.rerun()
+    rerun()
 
 if not st.session_state.allow_recording and not st.session_state.audio_data:
     st.sidebar.info("Click 'New Recording' to start.")
@@ -588,7 +634,7 @@ elif st.session_state.allow_recording:
             st.sidebar.success("✅ Voice detected successfully")
             st.session_state.audio_data = recorded
             st.session_state.allow_recording = False
-            st.rerun()
+            rerun()
 
 if st.session_state.audio_data:
     st.sidebar.markdown("## 🎧 Recorded Audio")
@@ -597,14 +643,14 @@ if st.session_state.audio_data:
 
     if st.sidebar.button("✅ Continue with this Audio"):
         st.session_state.confirmed_audio = True
-        st.rerun()
+        rerun()
 
 st.sidebar.markdown("## 🧹 Session")
 
 if st.sidebar.button("Clear history"):
     st.session_state.history = []
     st.session_state.current = None
-    st.rerun()
+    rerun()
 
 # =====================================================
 # PIPELINE
@@ -1184,8 +1230,9 @@ def render_about():
     st.markdown("## Privacy")
     st.markdown(
         "Recordings are sent to Google Gemini to be understood, and the answer text is sent to "
-        "Google Text-to-Speech to be spoken. Nothing is stored on the server; history lives only "
-        "in your browser session and disappears when you close the tab."
+        "Google Text-to-Speech to be spoken. Nothing is written to disk. Your session history is kept in "
+        "the app's memory under a random link id so it survives a page refresh; use "
+        "'Clear history' in the sidebar to remove it, and it is lost whenever the app restarts."
     )
     st.markdown("## Please note")
     st.markdown(
@@ -1210,13 +1257,13 @@ with st.expander("⌨️ Prefer typing? Ask your question in any supported langu
         )
         if st.form_submit_button("Ask BOB AI") and typed.strip():
             st.session_state.pending_text = typed.strip()
-            st.rerun()
+            rerun()
 
     st.caption("Or try an example:")
     for col, sample in zip(st.columns(len(SAMPLE_QUESTIONS)), SAMPLE_QUESTIONS):
         if col.button(sample, key=f"sample_{sample}"):
             st.session_state.pending_text = sample
-            st.rerun()
+            rerun()
 
 # ---- decide what to process on this run ----
 job = None
@@ -1284,3 +1331,4 @@ with tab_about:
 
 # KPIs are filled last so they include the answer produced on this run
 render_kpis(kpi_slot)
+persist()
