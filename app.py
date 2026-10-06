@@ -45,7 +45,7 @@ SAMPLE_RATE = 16000
 MIN_AUDIO_BYTES = 5000  # recordings smaller than this are treated as silence
 
 DEFAULT_VOICE_MODEL = "gemini-flash-lite-latest"
-DEFAULT_GEN_MODEL = "gemma-4-26b-a4b-it"
+DEFAULT_GEN_MODEL = "gemini-flash-lite-latest"
 
 DOMAINS = [
     "home loan",
@@ -736,6 +736,7 @@ def build_extract_prompt(kind, text=None):
     else:
         steps = (
             "1. Detect the language of the customer text below.\n"
+            "(Strictly Consider the original languages whether it may have or have not been typed in latin text, like for Hinglish - consider Hindi, for Banglish - consider Bengali and so on)\n"
             "2. Copy the customer text as the transcript, unchanged.\n"
             "3. Translate the text into English."
         )
