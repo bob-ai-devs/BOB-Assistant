@@ -80,7 +80,7 @@ SAMPLE_QUESTIONS = [
     "मुझे गाड़ी खरीदने के लिए लोन चाहिए",
 ]
 
-EXTRACT_KEYS = ["LANGUAGE", "TRANSCRIPT", "TRANSLATED_QUESTION", "DOMAIN", "KEYWORDS"]
+EXTRACT_KEYS = ["LANGUAGE", "TRANSCRIPT", "TRANSLATED_QUESTION", "DOMAIN", "KEYWORDS", "KEYWORDS_NATIVE"]
 ANSWER_KEYS = ["RESPONSE", "TRANSLATE"]
 
 # =====================================================
@@ -638,6 +638,7 @@ Tasks:
 {steps}
 4. Find the exact Domain Name from these domains: {DOMAINS}, return exactly single value
 5. Find Only the Essential English Keywords as a Python List (can only be set of unigrams), ignore general keywords like parts-of-speech keywords (pronouns, adjective, verb, adverb, prepositions, conjunctions, interjections and so on) and also ignore general financial keywords that already present in domain name (like 'loan', 'atm', 'credit', 'debit', 'account', 'savings' etc.)
+6. For every keyword from task 5, give the same keyword in the customer's original language and script, as a Python dict {{"english keyword": "native keyword"}}. If the language is English, repeat the English keyword.
 
 Return ONLY in this exact format:
 
@@ -655,6 +656,9 @@ DOMAIN:
 
 KEYWORDS:
 <keywords list>
+
+KEYWORDS_NATIVE:
+<keywords dict>
 """
 
 
@@ -723,6 +727,19 @@ def parse_keywords(raw):
         if k and k not in cleaned:
             cleaned.append(k)
     return cleaned
+
+
+def parse_keyword_map(raw, keywords):
+    """english keyword -> native keyword; falls back to the English word."""
+    raw = (raw or "").strip()
+    mapping = {}
+    try:
+        value = ast.literal_eval(raw[raw.index("{"): raw.rindex("}") + 1])
+        if isinstance(value, dict):
+            mapping = {str(k).strip().lower(): str(v).strip() for k, v in value.items()}
+    except Exception:
+        pass
+    return {k: mapping.get(k, k) for k in keywords}
 
 
 @st.cache_data(show_spinner=False)
@@ -806,13 +823,15 @@ def run_pipeline(job, status):
             "Try asking about: " + ", ".join(d.title() for d in DOMAINS) + "."
         )
 
+    keywords = parse_keywords(sections.get("KEYWORDS"))
     result.update(
         raw_extract=raw_extract,
         language=sections.get("LANGUAGE", "").strip() or "Unknown",
         transcript=sections.get("TRANSCRIPT", "").strip(),
         translated_question=question,
         domain=domain,
-        keywords=parse_keywords(sections.get("KEYWORDS")),
+        keywords=keywords,
+        keyword_native=parse_keyword_map(sections.get("KEYWORDS_NATIVE"), keywords),
     )
 
     # ---------- 2. match products ----------
@@ -970,7 +989,14 @@ def render_result(r):
             st.markdown(bob_box(value), unsafe_allow_html=True)
 
         st.markdown("## Keywords")
-        st.markdown(chips(r["keywords"]), unsafe_allow_html=True)
+        st.dataframe(
+            pd.DataFrame({
+                f"Native keyword ({r['language'].title()})": [r["keyword_native"][k] for k in r["keywords"]],
+                "English keyword": r["keywords"],
+            }),
+            hide_index=True,
+            width="stretch",
+        )
 
     with tab3:
         st.markdown("## Matched Products")
@@ -1125,11 +1151,22 @@ def render_analytics():
 
     with right:
         st.markdown("### What customers are asking about")
-        keyword_counts = Counter(k for h in history for k in h["keywords"])
-        if keyword_counts:
-            st.markdown(
-                chips([f"{k} ({n})" for k, n in keyword_counts.most_common(15)]),
-                unsafe_allow_html=True,
+        pair_counts = Counter(
+            (h["keyword_native"].get(k, k), k, h["language"].title())
+            for h in history
+            for k in h["keywords"]
+        )
+        if pair_counts:
+            st.dataframe(
+                pd.DataFrame(
+                    [
+                        {"Native keyword": native, "English keyword": english,
+                         "Language": language, "Asked": n}
+                        for (native, english, language), n in pair_counts.most_common(20)
+                    ]
+                ),
+                hide_index=True,
+                width="stretch",
             )
         else:
             st.caption("No keywords captured yet.")
@@ -1221,6 +1258,7 @@ with tab_assistant:
                     "domain": result["domain"],
                     "question": result["translated_question"],
                     "keywords": result["keywords"],
+                    "keyword_native": result["keyword_native"],
                     "answer_en": result["answer_en"],
                     "answer_local": result["answer_local"],
                     "timings": result["timings"],
