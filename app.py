@@ -688,7 +688,7 @@ def build_extract_prompt(kind, text=None):
         source = ""
     else:
         steps = (
-            "1. Detect the language of the customer text below.\n"
+            "1. Detect the language of the customer text below. (Consider the language only, the language may be written in latin script, like for Hinglish - consider Hindi, for Banglish - consider Bangla respectively)\n"
             "2. Copy the customer text as the transcript, unchanged.\n"
             "3. Translate the text into English."
         )
