@@ -15,7 +15,6 @@ import uuid
 import zipfile
 from collections import Counter
 from datetime import datetime
-from urllib.parse import urljoin
 
 import pandas as pd
 import streamlit as st
@@ -45,7 +44,7 @@ SAMPLE_RATE = 16000
 MIN_AUDIO_BYTES = 5000  # recordings smaller than this are treated as silence
 
 DEFAULT_VOICE_MODEL = "gemini-flash-lite-latest"
-DEFAULT_GEN_MODEL = "gemini-flash-lite-latest"
+DEFAULT_GEN_MODEL = "gemma-4-26b-a4b-it"
 
 DOMAINS = [
     "home loan",
@@ -736,7 +735,6 @@ def build_extract_prompt(kind, text=None):
     else:
         steps = (
             "1. Detect the language of the customer text below.\n"
-            "(Strictly Consider the original languages whether it may have or have not been typed in latin text, like for Hinglish - consider Hindi, for Banglish - consider Bengali and so on)\n"
             "2. Copy the customer text as the transcript, unchanged.\n"
             "3. Translate the text into English."
         )
@@ -1188,30 +1186,6 @@ def render_result(r):
     if rating is not None:
         for h in st.session_state.history:
             if h["id"] == r["id"]:
-                if h["feedback"] != rating:  # toast only when the choice changes
-                    bg, fg, border = (
-                        ("#e6f6ec", "#1e7e34", "#28a745") if rating == 1
-                        else ("#fdecee", "#b02a37", "#dc3545")
-                    )
-                    st.markdown(
-                        f"""<style>
-                        div[data-testid="stToast"] {{
-                            background: {bg} !important;
-                            border-left: 5px solid {border} !important;
-                        }}
-                        div[data-testid="stToast"] [data-testid="stMarkdownContainer"] p,
-                        div[data-testid="stToast"] [data-testid="stMarkdownContainer"] span,
-                        div[data-testid="stToast"] [data-testid="stMarkdownContainer"] strong {{
-                            color: {fg} !important;
-                            font-weight: 600;
-                        }}
-                        </style>""",
-                        unsafe_allow_html=True,
-                    )
-                    if rating == 1:
-                        st.toast("Thanks! Glad this was helpful.", icon="👍")
-                    else:
-                        st.toast("Sorry about that. We'll try to do better.", icon="👎")
                 h["feedback"] = rating
 
 
@@ -1427,35 +1401,50 @@ SCRAPE_HEADERS = {
                   "Chrome/123.0.0.0 Safari/537.36",
     "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
     "Accept-Language": "en-US,en;q=0.9",
-    "Referer": "https://www.bankofbaroda.in/",
+    "Referer": "https://www.bankofbaroda.co.in/",
     "Connection": "keep-alive",
 }
 
-# category -> (listing page, how sure we are). The developer can edit these in the UI.
-SOURCE_URLS = {
-    "home loan": ("https://bankofbaroda.bank.in/loans/home-loan", "site"),
-    "vehicle loan": ("https://bankofbaroda.bank.in/loans/vehicle-loan", "verify"),
-    "education loan": ("https://bankofbaroda.bank.in/loans/education-loan", "notebook"),
-    "personal loan": ("https://bankofbaroda.bank.in/loans/personal-loan", "verify"),
-    "mortgage loan": ("https://bankofbaroda.bank.in/loans/mortgage-loan", "verify"),
-    "term deposits": ("https://bankofbaroda.bank.in/personal-banking/accounts/term-deposit", "verify"),
-    "savings account": ("https://bankofbaroda.bank.in/personal-banking/accounts/savings-accounts", "verify"),
-    "salary account": ("https://bankofbaroda.bank.in/personal-banking/accounts/salary-accounts", "verify"),
-    "current account": ("https://bankofbaroda.bank.in/personal-banking/accounts/current-accounts", "verify"),
-    "debit card": ("https://bankofbaroda.bank.in/digital-products/cards/debit-cards", "notebook"),
+BASE_SITE = "https://bankofbaroda.bank.in"
+
+# Download menu: label -> page name on the bank site.
+# The first ten are what the assistant reads from Bank_Product/;
+# the last two are extra downloads (not used by the assistant unless you add them).
+DOWNLOAD_ITEMS = {
+    "debit card": "debit-cards",
+    "current account": "current-accounts",
+    "savings account": "saving-accounts",
+    "salary account": "salary-accounts",
+    "home loan": "home-loan",
+    "vehicle loan": "vehicle-loan",
+    "personal loan": "personal-loan",
+    "mortgage loan": "mortgage-loan",
+    "term deposits": "term-deposit",
+    "education loan": "education-loan",
+    "recurring deposit": "recurring-deposit",
+    "fixed deposit": "fixed-deposit",
 }
 
-SOURCE_NOTE = {
-    "notebook": "✅ from your notebook",
-    "site": "✅ page found on the bank site",
-    "verify": "⚠️ best guess, please verify",
-}
-
-# columns used by the card-style pages (the notebook's fallback branch)
-CARD_SECTIONS = [
+# columns the fallback (block-level) pages must contain
+FALLBACK_SECTIONS = [
     "benefits", "features", "eligible_customer_segments",
     "fees_charges", "card_limits", "dos_and_donts",
 ]
+
+
+def build_category_url(cat):
+    """Listing-page URL for a category slug (rules from the bank scrape code)."""
+    if "card" in cat:
+        url_string = f"digital-products/cards/{cat}"
+    elif "loan" in cat:
+        url_string = f"loans/{cat}"
+    elif ("account" in cat) or ("term" in cat):
+        url_string = f"accounts/{cat}"
+    elif ("fixed" in cat) or ("recurring" in cat):
+        url_string = f"accounts/term-deposit/{cat}"
+    else:
+        return None
+    return f"{BASE_SITE}/{url_string}"
 
 
 def normalize_heading(heading: str) -> str:
@@ -1506,47 +1495,55 @@ def _table_to_text(table):
 
 
 def parse_product_page(soup, link, base_url):
-    """One product page -> one-row DataFrame (same logic as the notebook)."""
+    """One product page -> one-row DataFrame (same logic as the bank scrape code)."""
+    # Extract tabbed sections
     tabs = soup.find_all("div", class_="tab")
+    tab_contents = {}
 
-    tab_contents = {"Card": link.replace(base_url, ""), "URL": link}
+    # Basic product info
+    tab_contents["Card"] = link.replace(base_url, "")
+    tab_contents["URL"] = link
 
+    # Process each tab
     for tab in tabs:
-        h3 = tab.find("h3")
-        heading = h3.get_text(strip=True) if h3 else None
-        if heading and ":" in heading:
+        heading = tab.find("h3").get_text(strip=True) if tab.find("h3") else None
+        if heading is None:
+            raise ValueError("a tab on this page has no heading")
+        if ":" in heading:
+            # Handle headings like "CardName: Section"
             tab_contents["Card"] = heading.split(":", 1)[0].strip()
             heading = heading.split(":", 1)[1].strip()
 
         heading = normalize_heading(heading)
-        if not heading:  # a tab without a heading has nothing to label it with
-            continue
 
         # Case 1: Table present
         table = tab.find("table")
         if table:
             tab_contents[heading] = _table_to_text(table)
 
-        # Case 2: List items or paragraphs
+        # Case 2: Lists or paragraphs
         else:
-            texts = [li.get_text(" ", strip=True) for li in tab.find_all("li")]
-            texts += [p.get_text(" ", strip=True) for p in tab.find_all("p")]
+            texts = []
+            for li in tab.find_all("li"):
+                texts.append(li.get_text(" ", strip=True))
+            for p in tab.find_all("p"):
+                texts.append(p.get_text(" ", strip=True))
             tab_contents[heading] = "\n".join(texts)
 
+    # If minimal content found, fallback to block-level scraping
     if len(tab_contents) <= 2:
-        title = soup.find("title")
-        tab_contents["Card"] = title.text.strip() if title else tab_contents["Card"]
-
-        # Collect all elements with an id (both section and div)
+        tab_contents["Card"] = soup.find("title").text
         for block in soup.find_all(["section", "div"], id=True):
             block_id = block.get("id")
             block_data = []
 
+            # Tables
             for table in block.find_all("table"):
                 text = _table_to_text(table)
                 if text:
                     block_data.append(text)
 
+            # Lists and paragraphs
             for li in block.find_all("li"):
                 block_data.append(li.get_text(" ", strip=True))
             for p in block.find_all("p"):
@@ -1555,17 +1552,23 @@ def parse_product_page(soup, link, base_url):
             if block_data:
                 tab_contents[block_id] = "\n".join(block_data)
 
+        # Build DataFrame with expected columns
         df = pd.DataFrame([tab_contents])
-        if any(c in tab_contents for c in CARD_SECTIONS):
-            df = df.reindex(columns=["Card", "URL"] + CARD_SECTIONS)
-            df.columns = list(df.columns[:2]) + [normalize_heading(c) for c in df.columns[2:]]
+        missing = [c for c in FALLBACK_SECTIONS if c not in df.columns]
+        if missing:
+            raise ValueError("page has no standard sections (missing: " + ", ".join(missing) + ")")
+        df = df[["Card", "URL"] + FALLBACK_SECTIONS]
+        df.columns = list(df.columns[:2]) + [normalize_heading(col) for col in df.columns[2:]]
+
     else:
+        # Build DataFrame directly from tab contents
         df = pd.DataFrame([tab_contents])
 
-    # tidy repeated spaces (skips empty cells, which are not text)
-    return df.apply(
-        lambda col: col.map(lambda v: re.sub(r" +", " ", v) if isinstance(v, str) else v)
-    )
+    # Clean extra spaces in all columns
+    for col in df.columns:
+        df[col] = df[col].str.replace(r" +", " ", regex=True)
+
+    return df
 
 
 def scrape_category(url, on_event=None, delay=REQUEST_DELAY):
@@ -1588,10 +1591,10 @@ def scrape_category(url, on_event=None, delay=REQUEST_DELAY):
     all_links = []
     for item in soup.find_all("li", class_="item"):
         for a in item.find_all("a", href=True):
-            href = urljoin(url, a["href"])
-            if url not in href:
+            href = a["href"]
+            if url not in href:  # ensure link belongs to same category
                 continue
-            if a["href"] != "#":  # skip dummy links
+            if href != "#":  # skip dummy links
                 all_links.append(href)
 
     links = list(dict.fromkeys(all_links))  # unique, keeps page order
@@ -1796,7 +1799,7 @@ def render_dev_page():
 
     selected = st.multiselect(
         "Categories to download",
-        DOMAINS,
+        list(DOWNLOAD_ITEMS),
         key="dev_selected",
         format_func=str.title,
         placeholder="Choose one or more categories…",
@@ -1805,11 +1808,16 @@ def render_dev_page():
     col_all, col_none, _ = st.columns([1, 1, 4])
     col_all.button(
         "Select all", key="dev_select_all",
-        on_click=lambda: st.session_state.update(dev_selected=list(DOMAINS)),
+        on_click=lambda: st.session_state.update(dev_selected=list(DOWNLOAD_ITEMS)),
     )
     col_none.button(
         "Clear", key="dev_select_none",
         on_click=lambda: st.session_state.update(dev_selected=[]),
+    )
+
+    st.caption(
+        "Recurring Deposit and Fixed Deposit are extra downloads. "
+        "The assistant itself reads Term Deposits."
     )
 
     urls = {}
@@ -1817,10 +1825,9 @@ def render_dev_page():
         if not selected:
             st.caption("Pick a category to see and edit its source page.")
         for domain in selected:
-            default_url, level = SOURCE_URLS[domain]
             urls[domain] = st.text_input(
-                f"{domain.title()}  ·  {SOURCE_NOTE[level]}",
-                value=default_url,
+                domain.title(),
+                value=build_category_url(DOWNLOAD_ITEMS[domain]),
                 key=f"dev_url_{domain}",
             )
 
