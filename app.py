@@ -1187,6 +1187,30 @@ def render_result(r):
     if rating is not None:
         for h in st.session_state.history:
             if h["id"] == r["id"]:
+                if h["feedback"] != rating:  # toast only when the choice changes
+                    bg, fg, border = (
+                        ("#e6f6ec", "#1e7e34", "#28a745") if rating == 1
+                        else ("#fdecee", "#b02a37", "#dc3545")
+                    )
+                    st.markdown(
+                        f"""<style>
+                        div[data-testid="stToast"] {{
+                            background: {bg} !important;
+                            border-left: 5px solid {border} !important;
+                        }}
+                        div[data-testid="stToast"] [data-testid="stMarkdownContainer"] p,
+                        div[data-testid="stToast"] [data-testid="stMarkdownContainer"] span,
+                        div[data-testid="stToast"] [data-testid="stMarkdownContainer"] strong {{
+                            color: {fg} !important;
+                            font-weight: 600;
+                        }}
+                        </style>""",
+                        unsafe_allow_html=True,
+                    )
+                    if rating == 1:
+                        st.toast("Thanks! Glad this was helpful.", icon="👍")
+                    else:
+                        st.toast("Sorry about that. We'll try to do better.", icon="👎")
                 h["feedback"] = rating
 
 
