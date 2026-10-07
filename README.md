@@ -99,8 +99,9 @@ The sidebar has a **🛠️ Developer Options** section. Enter the developer pas
 5. Edit the files if you wish, put them in `Bank_Product/` with the same names, and commit.
 
 Notes:
-- The scraper reads the product links on a category page (`<li class="item">`) and then each product page. Pages that fail are skipped and listed so you can retry.
-- The category URLs for Education Loan and Debit Card come from your notebook, Home Loan from the bank site. The others are best guesses: check them in **Source pages** the first time.
+- The scraper reads the product links on a category page (`<li class="item">`) and then each product page, using the bank team's scrape logic. Pages it cannot read are skipped and listed with the reason, so you can retry.
+- Category pages are built from the page names (for example `saving-accounts` becomes `https://bankofbaroda.bank.in/accounts/saving-accounts`). You can edit any URL under **Source pages**.
+- The menu has 12 items. The first 10 match the files the assistant reads. **Recurring Deposit** and **Fixed Deposit** are extra downloads.
 - Files written on Streamlit Cloud are not permanent, which is why the downloader hands you the files instead of saving them on the server.
 
 ## Troubleshooting
