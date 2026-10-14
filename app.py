@@ -37,7 +37,7 @@ st.set_page_config(
 # CONSTANTS
 # =====================================================
 
-BANNER_PATH = r"img - Copy (2).png"
+BANNER_PATH = r"img2.png"
 PRODUCT_DIR = "Bank_Product"
 
 SAMPLE_RATE = 16000
