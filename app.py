@@ -87,8 +87,8 @@ LANGUAGE_MAP = {
     "tamil": "ta",
     "gujarati": "gu",
     "kannada": "kn",
-    "odia": "or",
-    "oriya": "or",         # Alternative name for Odia
+    "odia": "or-IN",
+    "oriya": "or-IN",         # Alternative name for Odia
     "malayalam": "ml",
     "punjabi": "pa",
     "assamese": "bn",
