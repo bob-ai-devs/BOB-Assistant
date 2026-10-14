@@ -37,7 +37,10 @@ st.set_page_config(
 # CONSTANTS
 # =====================================================
 
-BANNER_PATH = r"img.png"
+# Image in the same folder as app.py
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+BANNER_PATH = os.path.join(BASE_DIR, "img2.png")
+
 PRODUCT_DIR = "Bank_Product"
 
 SAMPLE_RATE = 16000
@@ -464,6 +467,7 @@ p, li, span { color: black; }
 if os.path.exists(BANNER_PATH):
     st.image(BANNER_PATH, width="stretch")
 else:
+    st.warning(f"Banner not found: {BANNER_PATH}")
     st.markdown(
         '<div class="fallback-banner">BOB AI Multilingual Product Assistant</div>',
         unsafe_allow_html=True,
