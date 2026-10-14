@@ -92,16 +92,16 @@ LANGUAGE_MAP = {
     "sanskrit": "hi",
     "nepali": "hi",
     
-    # Additional Indian languages
-    "konkani": "hi",       # Fallback to Hindi
-    "manipuri": "hi",      # Fallback to Hindi
-    "meitei": "hi",        # Fallback to Hindi
-    "bodo": "hi",          # Fallback to Hindi
-    "dogri": "hi",         # Fallback to Hindi
-    "maithili": "hi",      # Fallback to Hindi
-    "santali": "hi",       # Fallback to Hindi
-    "kashmiri": "ur",      # Fallback to Urdu
-    "sindhi": "hi",        # Fallback to Hindi
+    # # Additional Indian languages
+    # "konkani": "hi",       # Fallback to Hindi
+    # "manipuri": "hi",      # Fallback to Hindi
+    # "meitei": "hi",        # Fallback to Hindi
+    # "bodo": "hi",          # Fallback to Hindi
+    # "dogri": "hi",         # Fallback to Hindi
+    # "maithili": "hi",      # Fallback to Hindi
+    # "santali": "hi",       # Fallback to Hindi
+    # "kashmiri": "ur",      # Fallback to Urdu
+    # "sindhi": "hi",        # Fallback to Hindi
 
 }
 
