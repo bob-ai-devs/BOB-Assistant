@@ -62,16 +62,47 @@ DOMAINS = [
     "debit card",
 ]
 
+# LANGUAGE_MAP = {
+#     "english": "en",
+#     "hindi": "hi",
+#     "marathi": "mr",
+#     "tamil": "ta",
+#     "bengali": "bn",
+#     "telugu": "te",
+#     "kannada": "kn",
+#     "malayalam": "ml",
+#     "gujarati": "gu",
+# }
+
 LANGUAGE_MAP = {
+    # Major Indian languages
     "english": "en",
     "hindi": "hi",
-    "marathi": "mr",
-    "tamil": "ta",
     "bengali": "bn",
     "telugu": "te",
-    "kannada": "kn",
-    "malayalam": "ml",
+    "marathi": "hi",       # Fallback to Hindi in gTTS
+    "tamil": "ta",
     "gujarati": "gu",
+    "kannada": "kn",
+    "odia": "or",
+    "oriya": "or",         # Alternative name for Odia
+    "malayalam": "ml",
+    "punjabi": "pa",
+    "assamese": "bn",
+    "sanskrit": "hi",
+    "nepali": "hi",
+    
+    # Additional Indian languages
+    "konkani": "hi",       # Fallback to Hindi
+    "manipuri": "hi",      # Fallback to Hindi
+    "meitei": "hi",        # Fallback to Hindi
+    "bodo": "hi",          # Fallback to Hindi
+    "dogri": "hi",         # Fallback to Hindi
+    "maithili": "hi",      # Fallback to Hindi
+    "santali": "hi",       # Fallback to Hindi
+    "kashmiri": "ur",      # Fallback to Urdu
+    "sindhi": "hi",        # Fallback to Hindi
+
 }
 
 IGNORED_MODEL_KEYS = [
