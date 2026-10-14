@@ -467,7 +467,6 @@ p, li, span { color: black; }
 if os.path.exists(BANNER_PATH):
     st.image(BANNER_PATH, width="stretch")
 else:
-    st.warning(f"Banner not found: {BANNER_PATH}")
     st.markdown(
         '<div class="fallback-banner">BOB AI Multilingual Product Assistant</div>',
         unsafe_allow_html=True,
