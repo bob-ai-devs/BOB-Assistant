@@ -3,10 +3,12 @@
 # Record / type → Understand → Match products → Answer → Speak
 
 import ast
+import base64
 import difflib
 import hmac
 import html
 import io
+import mimetypes
 import os
 import re
 import textwrap
@@ -18,6 +20,7 @@ from datetime import datetime
 
 import pandas as pd
 import streamlit as st
+import streamlit.components.v1 as components
 from audio_recorder_streamlit import audio_recorder
 from google import genai
 from google.genai import types
@@ -492,11 +495,53 @@ p, li, span { color: black; }
 """, unsafe_allow_html=True)
 
 # =====================================================
+# MEDIA HELPERS
+# st.image(<file>) and st.audio(<bytes>) are served through Streamlit's
+# internal /media/ endpoint, which can fail on some Streamlit / Python
+# versions (RuntimeError: Expected ASGI message 'http.response.start').
+# These helpers embed the bytes directly in the page instead.
+# =====================================================
+
+
+@st.cache_data(show_spinner=False)
+def image_data_uri(path: str) -> str:
+    mime = mimetypes.guess_type(path)[0] or "image/png"
+    with open(path, "rb") as f:
+        return f"data:{mime};base64,{base64.b64encode(f.read()).decode()}"
+
+
+def audio_player(data: bytes, mime: str = "audio/mpeg", autoplay: bool = False):
+    """Audio element with the bytes embedded, so no /media/ request is needed."""
+    b64 = base64.b64encode(data).decode()
+    player = (
+        '<html><body style="margin:0;background:transparent;">'
+        f'<audio controls {"autoplay" if autoplay else ""} style="width:100%;" '
+        f'src="data:{mime};base64,{b64}"></audio>'
+        "</body></html>"
+    )
+    try:
+        components.html(player, height=60)
+    except Exception:
+        # last resort: the native element (may fail if the media endpoint is broken)
+        st.audio(data, format=mime)
+
+
+# =====================================================
 # BANNER
 # =====================================================
 
 if os.path.exists(BANNER_PATH):
-    st.image(BANNER_PATH, width="stretch")
+    try:
+        st.markdown(
+            f'<img src="{image_data_uri(BANNER_PATH)}" '
+            'style="width:100%; border-radius:12px; margin-bottom:8px;">',
+            unsafe_allow_html=True,
+        )
+    except Exception:
+        st.markdown(
+            '<div class="fallback-banner">BOB AI Multilingual Product Assistant</div>',
+            unsafe_allow_html=True,
+        )
 else:
     st.markdown(
         '<div class="fallback-banner">BOB AI Multilingual Product Assistant</div>',
@@ -1122,7 +1167,7 @@ def render_result(r):
     with tab2:
         if r.get("input_audio"):
             st.markdown("## Your Recording")
-            st.audio(r["input_audio"])
+            audio_player(r["input_audio"], "audio/wav")
 
         for title, value in [
             ("Detected Language", r["language"]),
@@ -1193,12 +1238,12 @@ def render_result(r):
 
         st.markdown("## Spoken Response")
         if r["tts"]:
-            # Native audio element, keyed per answer, so a new answer always
-            # loads its own voice instead of reusing the previous one.
+            # Audio bytes embedded in the page, keyed per answer, so a new
+            # answer always loads its own voice instead of reusing the previous one.
             with st.container(key=f"voice_{r['id']}"):
-                st.audio(
+                audio_player(
                     r["tts"],
-                    format="audio/mp3",
+                    "audio/mpeg",
                     autoplay=bool(AUTOPLAY and not r["played"]),
                 )
             r["played"] = True
@@ -1368,7 +1413,7 @@ def render_about():
 
 def speak_panel():
     if st.session_state.audio_data:
-        st.audio(st.session_state.audio_data)
+        audio_player(st.session_state.audio_data, "audio/wav")
 
         col_ask, col_new = st.columns(2)
         if col_ask.button("✅ Get answer", type="primary", key="ask_audio"):
