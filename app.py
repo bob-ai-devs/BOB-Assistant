@@ -608,7 +608,7 @@ if not API_KEY:
 
 @st.cache_resource(show_spinner=False)
 def get_client(api_key: str):
-    return genai.Client(api_key=api_key)
+    return genai.Client(api_key=api_key, http_options=types.HttpOptions(api_version="v1beta"))
 
 
 client = get_client(API_KEY)
